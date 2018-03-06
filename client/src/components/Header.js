@@ -32,7 +32,7 @@ class Header extends Component {
                 className="left brand-logo"
                 style={{ marginLeft: '2%'}}
               >
-                Emaily
+                SurveyBuilder
               </Link>
               <ul className="right">
                 {this.renderContent()}
