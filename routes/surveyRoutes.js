@@ -11,14 +11,14 @@ const Survey = mongoose.model('surveys');
 
 module.exports = app => {
 
-  app.get('/api/surveys/thanks', (req, res) => {
+  app.get('/api/surveys/:surveyId/:choice', (req, res) => {
     res.send('Thanks for voting!');
   });
 
   app.post('/api/surveys/webhooks', (req, res) => {
     const p = new Path('/api/surveys/:surveyId/:choice');
     // Using lodash library _.chain helper method
-    const events = _.chain(req.body)
+    _.chain(req.body)
       .map(({ email, url }) => {
         const match = p.test(new URL(url).pathname);
         if (match) {
@@ -29,8 +29,31 @@ module.exports = app => {
       .compact()
       // Remove duplicate items that have been returned
       .uniqBy('email', 'surveyId')
+      .each(({ surveyId, email, choice }) => {
+        // Find a record that matches this criteria - all done completely in mongo, NOT in our express server
+        Survey.updateOne(
+          {
+            // In the mongoDB world we have to use '_id' instead of 'id'.
+            _id: surveyId,
+            // recipients is a subdocument model, hence the nested object
+            recipients: {
+              $elemMatch: { email: email, responded: false}
+            }
+          },
+          {
+            // $inc is a mongo operator
+            // [choice] is an es6 key interpolator - if the key is 'yes' or no, either way, it'll increment the value by one
+            // Choice and 'if responded' to be updated
+            $inc: { [choice]: 1},
+            // $set is a mongo operator for 'set' or 'update'
+            // recipients is a subdocument layer '$' is the specific matched element and then update the 'responded' property to 'true'
+            $set: { 'recipients.$.responded': true },
+            lastResponded: new Date()
+          }
+        ).exec();
+      })
       .value();
-    console.log(events);
+
     res.send({});
   });
 
